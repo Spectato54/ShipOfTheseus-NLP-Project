@@ -1,7 +1,7 @@
 """
 Builds the T0->T3 paraphrase chain per document and saves the split datasets to disk.
 """
-
+import pandas as pd
 from src.utils.config import DATA_PROCESSED, STAGES
 
 
@@ -10,59 +10,45 @@ def build_chains(df):
     Build paraphrase chains for each document in the dataset; preprocess_dataset() should be called before this function.
     Returns a new DataFrame with columns: source, key, paraphraser, family, T0, T1, T2, T3.
     """
-    # Verify preprocess has been run
-    for col in ["cleaned_text", "no_stop_text"]:
-        if col not in df.columns:
-            raise ValueError(
-                f"Column '{col}' not found. Run preprocess_dataset() before build_chains()."
-            )
+
+    df = df.copy()
 
     # Separate T0 from paraphrased versions since T0 is the original text and shared across all chains
-    t0_df = df[df["stage"] == "T0"][
-        ["source", "key", "text", "cleaned_text", "no_stop_text"]
-    ].rename(
-        columns={
-            "text": "T0_text",
-            "cleaned_text": "T0_cleaned",
-            "no_stop_text": "T0_no_stop",
-        }
+    t0 = (
+        df[df["stage"] == "T0"][["key", "source", "text"]]
+        .drop_duplicates(subset=["key", "source"])
+        .rename(columns={"text": "T0"})
     )
 
-    # Pivot the paraphrased versions (T1-T3) to wide format
-    paraphrase_df = (
-        df[df["stage"] != "T0"]
-        .pivot_table(
-            index=["source", "key", "paraphraser", "family"],
-            columns="stage",
-            values=["text", "cleaned_text", "no_stop_text"],
-            aggfunc="first"
-        )
-        .reset_index()
-    )
+    chains = []
+    paraphrasers = [p for p in df["paraphraser"].unique() if p != "original"]
 
-    # Flatten MultiIndex columns: ('text', 'T1') -> 'T1_text'
-    paraphrase_df.columns = [
-		f"{stage}_{col}" if stage else col
-		for col, stage in paraphrase_df.columns
-	]
+    for paraphraser in paraphrasers:
+        subset = df[df["paraphraser"] == paraphraser]
 
-    paraphrase_df.columns.name = None  # Remove the columns name from pivot
+        # Grab family for this paraphraser — same value for all rows in subset
+        family = subset["family"].iloc[0]
 
-    rename_map = {}
-    for stage in ["T1", "T2", "T3"]:
-        rename_map[f"{stage}_cleaned_text"] = f"{stage}_cleaned"
-        rename_map[f"{stage}_no_stop_text"] = f"{stage}_no_stop"
-    paraphrase_df = paraphrase_df.rename(columns=rename_map)
-    
-    # Merge T0 with the paraphrased versions to build the full chains
-    merged_df = paraphrase_df.merge(t0_df, on=["source", "key"], how="left")
+        for stage in ["T1", "T2", "T3"]:
+            stage_df = (
+                subset[subset["stage"] == stage][["key", "source", "text"]]
+                .drop_duplicates(subset=["key", "source"])
+                .rename(columns={"text": stage})
+            )
+            if stage == "T1":
+                merged = stage_df
+            else:
+                merged = merged.merge(stage_df, on=["key", "source"], how="outer")
 
-    # Reorder columns for clarity
-    order_cols = (["source", "key", "paraphraser", "family"] +
-				  [f"{stage}_{suffix}" for stage in ["T0", "T1", "T2", "T3"] for suffix in ["text", "cleaned", "no_stop"]])
-    
-    chain_df = merged_df[[c for c in order_cols if c in merged_df.columns]]
-    return chain_df
+        merged["paraphraser"] = paraphraser
+        merged["family"] = family
+        chains.append(merged)
+
+    paraphrased = pd.concat(chains, ignore_index=True)
+
+    result = paraphrased.merge(t0, on=["key", "source"], how="left")
+    result = result[["key", "source", "paraphraser", "family", "T0", "T1", "T2", "T3"]]
+    return result.reset_index(drop=True)
 
 
 def save_chain(chains_df, dataset_name):
@@ -111,8 +97,7 @@ def display_paraphrase_chain(df, dataset, key, source, paraphraser):
             print(f"\n[{t}] — NOT FOUND")
             continue
 
-        text = row.iloc[0][f"{t}_text"]
+        text = row.iloc[0][f"{t}"]
         word_count = len(text.split())
-        print(f"\n[{t}_text] ({word_count} words):")
+        print(f"\n[{t}] ({word_count} words):")
         print(f" {text}")
-        

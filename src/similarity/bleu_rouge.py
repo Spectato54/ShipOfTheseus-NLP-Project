@@ -71,8 +71,8 @@ def compute_bleu_rouge(chains_df, sample_n=None, seed=64):
     for stage in STAGES:
         if stage == "T0":
             continue  # Skip T0 since it's the reference
-        t0_col = "T0_text"
-        tn_col = f"{stage}_text"
+        t0_col = "T0"
+        tn_col = f"{stage}"
 
         # Skip rows where either text is missing
         valid = df[t0_col].notna() & df[tn_col].notna()
@@ -80,7 +80,7 @@ def compute_bleu_rouge(chains_df, sample_n=None, seed=64):
         hyps = df.loc[valid, tn_col].tolist()
 
         if not refs:
-            print(f"  No valid rows for {stage}, skipping.")
+            print(f"No valid rows for {stage}, skipping.")
             continue
         
         # ROUGE

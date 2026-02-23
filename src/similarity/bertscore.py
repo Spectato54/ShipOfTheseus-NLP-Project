@@ -22,14 +22,14 @@ def compute_bertscore(chains_df, batch_size=64, lang="en"):
 
         if stage == 'T0':
             continue  # Skip T0 since it's the reference
-        t0_col = "T0_text"
-        tn_col = f"{stage}_text"
+        t0_col = "T0"
+        tn_col = f"{stage}"
         valid_mask = df[t0_col].notna() & df[tn_col].notna()
         refs = df.loc[valid_mask, t0_col].tolist()
         hyps = df.loc[valid_mask, tn_col].tolist()
 
         if not hyps:
-            print(f"  No valid rows for {stage}, skipping.")
+            print(f"No valid rows for {stage}, skipping.")
             continue
 
         _, _, F1 = bert_score_fn(
