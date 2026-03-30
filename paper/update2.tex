@@ -268,6 +268,13 @@ model to compute token-level similarity, making it robust to surface-form
 variation. A high BERTScore despite low BLEU/ROUGE indicates semantic
 preservation without lexical preservation.
 
+\textbf{SBERT Cosine Similarity} encodes each text into a single
+sentence-level embedding using Sentence-BERT (\texttt{all-MiniLM-L6-v2})
+and computes cosine similarity between the T0 reference and each
+paraphrased stage. Unlike BERTScore, which operates at the token level,
+SBERT captures holistic sentence-level semantic similarity in a shared
+embedding space.
+
 \subsection{Stylometric Feature Extraction}
 To address RQ1, we extract six stylometric features from each text using
 spaCy (\texttt{en\_core\_web\_sm}):
@@ -361,6 +368,16 @@ datasets. This divergence is the central quantitative finding of this
 update: \emph{lexical planks are replaced before the semantic hull is
 compromised}.
 
+\textbf{SBERT confirms semantic preservation at the sentence level.}
+SBERT cosine similarity declines from 1.0 (T0) to 0.79 (T1), 0.75 (T2),
+and 0.73 (T3). This decay rate is steeper than BERTScore (which remains at
+0.81 at T3) but far slower than lexical metrics. The difference between
+BERTScore and SBERT is informative: BERTScore's token-level matching is
+more forgiving of paraphrasing (it aligns individual tokens), while SBERT's
+holistic sentence embedding is more sensitive to structural reorganization.
+Per-dataset SBERT scores range from 0.71 (sci\_gen, yelp at T3) to 0.75
+(xsum at T3), confirming that semantic preservation holds across all domains.
+
 \begin{center}
 \small
 \begin{tabular}{lrrrr}
@@ -371,11 +388,13 @@ BLEU-2       & 1.00 & 0.54 & 0.38 & 0.28 \\
 ROUGE-1      & 1.00 & 0.67 & 0.54 & 0.46 \\
 ROUGE-L      & 1.00 & 0.61 & 0.48 & 0.41 \\
 BERTScore F1 & 1.00 & 0.91 & 0.86 & 0.81 \\
+SBERT Cosine & 1.00 & 0.79 & 0.75 & 0.73 \\
 \bottomrule
 \end{tabular}
 \captionof{table}{Mean similarity scores (vs.\ T0) across all datasets
 combined. Values at T0 = 1.0 by definition (reference against itself).
-BERTScore decays approximately 3$\times$ slower than BLEU-2.}
+BERTScore decays approximately 3$\times$ slower than BLEU-2. SBERT cosine
+similarity falls between lexical and token-level semantic metrics.}
 \label{tab:similarity_means}
 \end{center}
 
@@ -570,9 +589,52 @@ general-purpose instruction-following model that aggressively rewrites text.
 Pegasus, as a summarization-focused model, preserves the original style
 most faithfully ($-$4.5pp). Dipper and PaLM fall between these extremes.
 
+\subsubsection{Error Analysis}
+
+To understand \emph{how} the classifier fails, we examine misclassification
+patterns at T3.
+
+\textbf{Misclassification is symmetric.} At T3, 21.3\% of Human texts are
+misclassified as AI, while 20.2\% of AI texts are misclassified as Human.
+This near-symmetry indicates that paraphrasing erodes distinguishing features
+in both directions rather than systematically pushing texts toward one class.
+The direction gap widens slightly across stages: at T1 the rates are 15.4\%
+(Human$\rightarrow$AI) vs.\ 18.7\% (AI$\rightarrow$Human), suggesting
+that AI texts lose their machine signatures slightly faster than human
+texts lose their authorial fingerprint.
+
+\textbf{Domain vulnerability varies.} Per-domain error rates at T3 reveal
+that sci\_gen (scientific text) is hardest to classify at 71.0\% accuracy,
+followed by xsum (news, 76.7\%) and tldr (summaries, 79.4\%). In contrast,
+yelp (reviews, 83.2\%) and eli5 (explanatory QA, 82.2\%) are most
+resilient. Formal technical text may converge more rapidly toward a shared
+register, while colloquial text preserves more idiosyncratic human markers.
+
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Dataset} & \textbf{T3 Acc.} & \textbf{Error Rate} & \textbf{$n$} \\
+\midrule
+yelp     & 0.832 & 0.168 & 161 \\
+eli5     & 0.822 & 0.178 & 152 \\
+cmv      & 0.816 & 0.184 & 147 \\
+wp       & 0.810 & 0.190 & 158 \\
+tldr     & 0.794 & 0.206 & 141 \\
+xsum     & 0.767 & 0.233 & 150 \\
+sci\_gen & 0.710 & 0.290 & 169 \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Per-domain attribution accuracy at T3. Scientific text
+(sci\_gen) is most vulnerable to identity loss; colloquial text (yelp) is
+most resilient.}
+\label{tab:domain_errors}
+\end{center}
+
 \subsection{Paraphraser Fingerprinting (RQ3)}
 
-We train a 4-class Random Forest classifier on T1 data to determine whether
+We train a 4-class Random Forest classifier on T1 data with balanced
+class sampling (471 samples per family, 1,884 total) to determine whether
 paraphraser identity can be recovered from stylometric and lexical features.
 
 \begin{center}
@@ -581,17 +643,18 @@ paraphraser identity can be recovered from stylometric and lexical features.
 \toprule
 \textbf{Family} & \textbf{Prec.} & \textbf{Recall} & \textbf{F1} & \textbf{Support} \\
 \midrule
-ChatGPT & 0.70 & 0.24 & 0.35 & 118 \\
-Dipper  & 0.56 & 0.90 & 0.69 & 385 \\
-PaLM    & 0.33 & 0.01 & 0.02 & 124 \\
-Pegasus & 0.62 & 0.54 & 0.58 & 248 \\
+ChatGPT & 0.63 & 0.79 & 0.70 & 118 \\
+Dipper  & 0.63 & 0.55 & 0.58 & 117 \\
+PaLM    & 0.43 & 0.37 & 0.40 & 118 \\
+Pegasus & 0.52 & 0.53 & 0.52 & 118 \\
 \midrule
-\textbf{Overall} & \multicolumn{2}{l}{\textbf{Acc: 0.583}} & \textbf{0.41} & 875 \\
+\textbf{Overall} & \multicolumn{2}{l}{\textbf{Acc: 0.558}} & \textbf{0.55} & 471 \\
 \bottomrule
 \end{tabular}
-\captionof{table}{Paraphraser fingerprint classifier performance (4-class).
-Dipper is most identifiable (F1 = 0.69); PaLM is nearly indistinguishable
-from other families (F1 = 0.02).}
+\captionof{table}{Paraphraser fingerprint classifier performance (4-class,
+balanced). All families are identifiable above the 25\% chance baseline.
+ChatGPT is most identifiable (F1 = 0.70); PaLM is hardest to distinguish
+(F1 = 0.40).}
 \label{tab:fingerprint}
 \end{center}
 
@@ -603,24 +666,26 @@ from other families (F1 = 0.02).}
   sentence-level statistics dominate.}
 \end{figure}
 
-\textbf{Paraphrasers leave partially identifiable fingerprints.} Overall
-accuracy of 58.3\% significantly exceeds the 25\% chance baseline,
-confirming that paraphrasers do leave stylistic signatures. However,
-performance is highly uneven across families.
+\textbf{All paraphrasers leave identifiable fingerprints.} With balanced
+class sampling, overall F1 macro of 0.55 significantly exceeds the 0.25
+chance baseline, confirming that all four paraphrasers leave distinct
+stylistic signatures. Notably, balanced sampling dramatically improved
+fairness across classes compared to an unbalanced baseline where
+minority-class models (PaLM, ChatGPT) were nearly undetectable.
 
-\textbf{Dipper is the most distinctive paraphraser}, achieving 0.90 recall
-and 0.69 F1. Its discourse-level rewriting strategy produces
-characteristically different output from the other models. Pegasus is
-moderately identifiable (F1 = 0.58), while ChatGPT (F1 = 0.35) and
-especially PaLM (F1 = 0.02) are difficult to distinguish. PaLM's near-zero
-recall suggests it produces output stylistically similar to ChatGPT, as
-confirmed by the confusion matrix.
+\textbf{ChatGPT is the most identifiable paraphraser} (F1 = 0.70, recall =
+0.79), followed by Dipper (F1 = 0.58), Pegasus (F1 = 0.52), and PaLM
+(F1 = 0.40). PaLM remains the hardest to distinguish, likely because
+both PaLM and ChatGPT are large instruction-tuned LLMs that produce
+stylistically similar output. However, PaLM's F1 of 0.40 is still well
+above chance (0.25), confirming that even similar LLMs leave detectable
+traces.
 
 \textbf{Stylometric features dominate fingerprinting.} The top features by
-importance are \texttt{pos\_PUNCT} (0.022), \texttt{pos\_CCONJ} (0.019),
-and \texttt{sent\_len\_var} (0.018). This indicates that paraphrasers
-differ most in their treatment of punctuation, coordination patterns, and
-sentence-level structure rather than in vocabulary choice.
+importance are \texttt{pos\_PUNCT} (0.018), \texttt{sent\_len\_var}
+(0.017), and \texttt{pos\_NOUN} (0.016). This indicates that paraphrasers
+differ most in their treatment of punctuation, sentence-level structure,
+and noun usage rather than in vocabulary choice.
 
 \section{Discussion}
 
@@ -644,6 +709,39 @@ original style.
 authorship signals most effectively ($-$28pp by T3), making it the most
 potent tool for AI text laundering. Pegasus, by contrast, preserves authorship
 signals almost entirely ($-$4.5pp), consistent with its extractive design.
+
+\section{Limitations}
+
+Several limitations should be considered when interpreting our results.
+
+\textbf{Stylometric analysis covers 3 of 7 datasets.} Due to computational
+cost of spaCy parsing, stylometric features were extracted from wp, xsum,
+and yelp only (1,500 chains). While these span diverse domains, the
+remaining four datasets (sci\_gen, eli5, cmv, tldr) may exhibit different
+stylometric decay patterns that our analysis does not capture.
+
+\textbf{Simple classifiers.} Both attribution (Logistic Regression) and
+fingerprinting (Random Forest) use traditional ML models. Fine-tuned
+transformer models would likely achieve higher baseline accuracy and could
+reveal more nuanced patterns of identity decay. Our results therefore
+represent a lower bound on what is detectable.
+
+\textbf{Fingerprint sample size.} After balancing all four paraphraser
+families to 471 samples each, the total fingerprinting dataset is 1,884
+texts. While sufficient for Random Forest, a larger balanced sample
+could improve classifier performance, particularly for PaLM which
+remains the hardest to distinguish (F1 = 0.40).
+
+\textbf{Chain-level confounds.} Each T0 document generates paraphrase
+chains for multiple paraphrasers, meaning the same source content appears
+across families. While this controls for content, it means our classifiers
+may partially learn source-document features rather than pure
+paraphraser-specific signatures.
+
+\textbf{Corpus scope.} All data comes from a single corpus
+\cite{tripto2024} with four paraphraser families. Results may not
+generalize to newer LLMs (e.g., GPT-4, Claude, Llama) or to longer
+documents beyond the paragraph-level texts in this corpus.
 
 \section{Future Goals}
 Remaining work for the final paper includes: (1) expanding stylometric
