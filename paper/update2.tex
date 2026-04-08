@@ -54,7 +54,7 @@
 % ── Header / footer ──────────────────────────────────────────────────────────
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[C]{\small\textit{CS 6120 Project Update 2 --- Northeastern University, Seattle, 2025}}
+\fancyhead[C]{\small\textit{CS 6120 Final Paper --- Northeastern University, Seattle, 2025}}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
 
@@ -331,19 +331,9 @@ Mean word count decreases monotonically from T0 to T3 in every dataset.
 This finding holds universally: \emph{LLM paraphrasers systematically
 shorten text, not merely rephrase it}.
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig3_vocabulary_reduction.png}
-  \caption{Vocabulary follows a steady general decline with each further iteration.}
-\end{figure}
-
-\textbf{Vocabulary reduction (See Fig. 2)} Comparing all-word counts to content-word
+\textbf{Vocabulary reduction.} Comparing all-word counts to content-word
 counts (after stopword removal) across stages reveals that both decline in
-near-parallel. This indicates that paraphrasers are not merely introducing
-additional function words while removing content words, but rather, content
-and function words are reduced proportionally. The stopword gap (area between
-the two lines) remains approximately constant across T0$\rightarrow$T3,
-suggesting the ratio of content to function words is largely preserved.
+near-parallel, with content and function words reduced proportionally.
 
 \subsection{Baseline Similarity Analysis}
 
@@ -463,57 +453,22 @@ rises from 0.632 to 0.654 (+3.4\%). Because total word count also decreases
   depth and punctuation ratio decline monotonically; TTR increases.}
 \end{figure}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig2_pos_heatmap.png}
-  \caption{POS-tag frequency heatmap showing distribution shifts from T0 to
-  T3. Noun and verb frequencies remain stable; punctuation and conjunction
-  usage shift measurably.}
-\end{figure}
-
-\textbf{POS distributions drift measurably.} Figure~6 shows POS-tag
-frequency heatmaps across stages. While content-word categories (NOUN, VERB)
-remain relatively stable, function-word categories (PUNCT, CCONJ, DET) show
-visible shifts. We quantify this drift using Jensen-Shannon divergence
-between each stage's POS distribution and the T0 baseline (Figure~8).
-The divergence increases monotonically, confirming that grammatical structure
-drifts progressively from the original.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig3_dep_depth_boxplots.png}
-  \caption{Distribution of dependency depth, TTR, and sentence length
-  variance across stages.}
-\end{figure}
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig4_pos_js_divergence.png}
-  \caption{Jensen-Shannon divergence of POS distributions from T0 increases
-  monotonically across iterations.}
-\end{figure}
+\textbf{POS distributions drift measurably.} While content-word categories
+(NOUN, VERB) remain relatively stable, function-word categories (PUNCT,
+CCONJ, DET) show visible shifts. Jensen-Shannon divergence between each
+stage's POS distribution and the T0 baseline increases monotonically,
+confirming progressive grammatical drift from the original.
 
 \subsection{Identity Trajectory}
 
 We project all texts into a shared embedding space using TF-IDF followed by
-PCA(50)$\rightarrow$t-SNE(2) to visualize how text identity drifts across
-iterations.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig1_identity_trajectory_tsne.png}
-  \caption{t-SNE projection of TF-IDF embeddings, colored by stage
-  (T0=blue to T3=red). Stages overlap substantially, indicating gradual
-  drift rather than discrete clustering.}
-\end{figure}
-
-\textbf{Identity drift is gradual, not categorical.} The t-SNE projection
-(Figure~9) shows substantial overlap between stages. Silhouette scores are
-near zero ($-$0.014 in t-SNE space, $-$0.004 in PCA space), confirming that
-paraphrased texts do not form cleanly separable clusters by iteration. This
-supports the metaphor of gradual plank replacement: each iteration shifts
-the text incrementally rather than producing a categorically different
-document.
+PCA(50)$\rightarrow$t-SNE(2). The projection shows substantial overlap
+between stages, with silhouette scores near zero ($-$0.014 in t-SNE space),
+confirming that paraphrased texts do not form separable clusters by
+iteration. This supports the metaphor of gradual plank replacement:
+each iteration shifts the text incrementally rather than producing a
+categorically different document. Interactive t-SNE visualizations with
+stage and family filtering are available in our Streamlit dashboard.
 
 \subsection{Authorship Attribution --- Point of No Return (RQ2)}
 
@@ -539,14 +494,6 @@ degrades from 96.9\% to 79.5\% but remains well above the 50\% chance
 baseline.}
 \label{tab:attribution}
 \end{center}
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig2_attribution_collapse.png}
-  \caption{Attribution accuracy and F1 decline across paraphrase iterations.
-  The largest drop occurs at T1 ($-$14pp); subsequent iterations show
-  diminishing degradation.}
-\end{figure}
 
 \textbf{The ``point of no return'' is not reached by T3.} Attribution
 accuracy drops sharply from T0 (96.9\%) to T1 (82.9\%), then degrades more
@@ -658,14 +605,6 @@ ChatGPT is most identifiable (F1 = 0.70); PaLM is hardest to distinguish
 \label{tab:fingerprint}
 \end{center}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\linewidth]{fig4_fingerprint_results.png}
-  \caption{Left: Confusion matrix for 4-class paraphraser identification.
-  Right: Top feature importances. POS-tag features (PUNCT, CCONJ) and
-  sentence-level statistics dominate.}
-\end{figure}
-
 \textbf{All paraphrasers leave identifiable fingerprints.} With balanced
 class sampling, overall F1 macro of 0.55 significantly exceeds the 0.25
 chance baseline, confirming that all four paraphrasers leave distinct
@@ -687,68 +626,253 @@ importance are \texttt{pos\_PUNCT} (0.018), \texttt{sent\_len\_var}
 differ most in their treatment of punctuation, sentence-level structure,
 and noun usage rather than in vocabulary choice.
 
+\subsection{Named Entity Retention --- Content Erasure}
+
+While BERTScore and SBERT indicate that \emph{semantic meaning} is broadly
+preserved across iterations, these embedding-based metrics may mask the loss
+of \emph{concrete factual content}. To address this, we extract named entities
+(persons, locations, organizations, dates) from each stage using spaCy NER
+and compute entity retention metrics across all 7 datasets (500 samples each,
+3,500 chains total).
+
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Stage} & \textbf{Jaccard} & \textbf{Recall} & \textbf{Precision} \\
+\midrule
+T1 & 0.509 & 0.572 & 0.679 \\
+T2 & 0.446 & 0.506 & 0.647 \\
+T3 & 0.410 & 0.468 & 0.629 \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Entity retention metrics (vs.\ T0) across all datasets
+and paraphrasers. Recall measures entity preservation (dropping); precision
+measures 1 $-$ hallucination rate.}
+\label{tab:ner_summary}
+\end{center}
+
+\textbf{Named entities erode significantly.} By T3, only 47\% of original
+entities are preserved (recall), and Jaccard overlap drops to 0.41. This
+is a much steeper decline than BERTScore (0.81 at T3), revealing that
+paraphrasers maintain \emph{distributional meaning} while silently replacing
+or dropping \emph{specific factual referents}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{fig5_ner_decay_by_family.png}
+  \caption{Entity retention (Jaccard, recall, precision) across iterations
+  by paraphraser family. Dipper shows the steepest entity erosion; Pegasus
+  preserves entities most faithfully.}
+\end{figure}
+
+\textbf{Paraphraser families differ dramatically in entity preservation.}
+Dipper is the worst entity eraser, retaining only 31\% of original entities
+at T3 (recall) with a precision of 0.40, indicating both aggressive dropping
+\emph{and} frequent hallucination of new entities. Pegasus preserves 60\%
+of entities with 86\% precision, consistent with its extractive design.
+ChatGPT and PaLM fall between these extremes (recall 0.60 and 0.56 respectively).
+
+\textbf{Paraphraser intensity scales entity loss proportionally.}
+Pegasus(slight) retains 75\% of entities at T3 while Pegasus(full) retains
+only 46\%---a 29pp gap. Dipper(low) preserves 65\% versus Dipper(high) at
+just 5\%, demonstrating that increasing paraphraser aggressiveness
+disproportionately destroys factual content.
+
+\textbf{Domain vulnerability mirrors attribution patterns.} Scientific
+text (sci\_gen) and news summaries (xsum) suffer the most entity loss,
+likely because their specialized terminology and proper nouns are
+unfamiliar to general-purpose paraphrasers. Colloquial domains (yelp, cmv)
+retain entities better, paralleling the attribution results where
+these domains also showed higher classification accuracy.
+
+\subsection{Source Origin and Style Drift}
+
+We investigate whether the \emph{origin} of the T0 text---human-authored
+versus AI-generated---affects how much style is altered during paraphrasing.
+POS cosine similarity between T0 and T1 was computed across all 7 datasets
+grouped by source type.
+
+Human-authored T0 texts show a mean POS cosine similarity of 0.964 after
+paraphrasing, while AI-authored T0 texts show 0.961. This difference of
+0.003 is negligible, indicating that \textbf{style drift is driven by the
+paraphraser, not the source}. Whether the original text was written by a
+human or an LLM, paraphrasers alter grammatical structure to a nearly
+identical degree. This finding suggests that the ``fingerprint'' left by
+paraphrasing is a property of the paraphraser itself rather than an
+interaction between source and paraphraser.
+
+\subsection{Multi-Modal Decay Audit}
+
+We consolidate all analyses into a unified decay comparison across four
+linguistic layers, measured at T3:
+
+\begin{center}
+\small
+\begin{tabular}{llr}
+\toprule
+\textbf{Layer} & \textbf{Metric} & \textbf{T3 Score} \\
+\midrule
+Structure (skeleton) & POS Cosine Similarity & 0.946 \\
+Semantics (hull)     & BERTScore F1          & 0.810 \\
+Content (cargo)      & NER Jaccard           & 0.410 \\
+Lexical (skin)       & BLEU-2                & 0.280 \\
+\bottomrule
+\end{tabular}
+\captionof{table}{Multi-modal decay hierarchy at T3. The syntactic skeleton
+is nearly unchanged; the lexical surface is almost entirely replaced.}
+\label{tab:multimodal}
+\end{center}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{fig7_multimodal_audit.png}
+  \caption{Multi-modal decay across T0--T3. Structure remains stable,
+  semantics degrades slowly, content (entities) erodes significantly,
+  and lexical surface is replaced rapidly.}
+\end{figure}
+
+\noindent The decay hierarchy is clear and consistent across all datasets:
+$$\text{Lexical} > \text{Content} > \text{Semantics} > \text{Structure}$$
+
+\noindent This ordering reveals that LLM paraphrasers operate in a specific
+manner: they aggressively replace surface-level vocabulary (BLEU drops 72\%),
+significantly alter factual referents (NER drops 59\%), moderately shift
+distributional semantics (BERTScore drops 19\%), and barely touch
+grammatical structure (POS cosine drops only 5\%).
+
 \section{Discussion}
 
-Our Phase 2 results extend the Phase 1 finding that ``lexical planks are
-replaced before the semantic hull'' by adding three new dimensions.
+\subsection{The Paradox of Authorial Identity}
 
-\textbf{Syntactic simplification is a universal side effect of paraphrasing.}
-Dependency depth decreases monotonically across all datasets and paraphrasers.
-This has implications for accessibility research: while simplification may
-aid comprehension, it comes at the cost of syntactic diversity and authorial
-voice.
+Our multi-modal audit reveals a fundamental paradox: LLM paraphrasers
+\emph{preserve meaning while erasing identity}. At T3, BERTScore remains
+at 0.81 (meaning largely intact) while BLEU-2 drops to 0.28 (words almost
+entirely replaced) and NER Jaccard falls to 0.41 (half of named entities
+lost). The ship retains its shape and purpose, but the planks, cargo,
+and paint have been systematically replaced.
 
-\textbf{Authorship identity is resilient but not immortal.} Even after three
-rounds of paraphrasing, a simple linear classifier can still distinguish
-human from AI text at 79.5\% accuracy. The sharpest erosion occurs at the
-first iteration ($-$14pp), with diminishing returns thereafter. This
-suggests that the first paraphrase pass does the most ``damage'' to the
-original style.
+This paradox has direct implications for academic integrity. A student
+who runs a human-authored paper through three rounds of ChatGPT paraphrasing
+produces text that conveys the same ideas, uses the same grammatical
+structures, but shares fewer than 30\% of the original words and has lost
+nearly half its named entities. Traditional plagiarism detectors that rely
+on lexical overlap would fail to detect this transformation, yet the
+intellectual content remains derivative.
 
-\textbf{Not all paraphrasers are equal identity erasers.} ChatGPT erodes
-authorship signals most effectively ($-$28pp by T3), making it the most
-potent tool for AI text laundering. Pegasus, by contrast, preserves authorship
-signals almost entirely ($-$4.5pp), consistent with its extractive design.
+\subsection{Answering the Research Questions}
+
+\textbf{RQ1 (Style vs.\ Content Decay):} The decay hierarchy is
+unambiguous: lexical features are replaced first (BLEU: $-$72\%), followed
+by concrete content (NER: $-$59\%), then distributional semantics
+(BERTScore: $-$19\%), and finally syntactic structure (POS: $-$5\%).
+Style is eroded before content, and content before meaning. The ``planks''
+of vocabulary are replaced long before the ``hull'' of meaning is
+compromised.
+
+\textbf{RQ2 (Point of No Return):} The point of no return has
+\emph{not} been reached within three iterations. Attribution accuracy
+remains at 79.5\% at T3, well above the 50\% chance baseline.
+However, the sharpest erosion occurs at T1 ($-$14pp), with diminishing
+returns at T2 and T3. This suggests a logarithmic decay curve where
+the first paraphrase causes the most identity damage, with each
+subsequent iteration producing smaller marginal effects.
+
+\textbf{RQ3 (Paraphraser Fingerprints):} All four paraphraser families
+leave identifiable fingerprints (overall F1 = 0.55, vs.\ 0.25 chance).
+ChatGPT is the most identifiable (F1 = 0.70) due to its distinctive
+treatment of punctuation and sentence structure. Crucially, we find
+that style drift is driven by the paraphraser, not the source: human-authored
+and AI-authored T0 texts show nearly identical POS drift after paraphrasing
+(cosine 0.964 vs.\ 0.961), confirming that the fingerprint is a property
+of the paraphraser itself.
+
+\subsection{Implications}
+
+\textbf{For academic integrity:} The combination of high semantic
+preservation and low lexical overlap makes iterative paraphrasing a potent
+tool for AI text laundering. However, our results suggest that
+stylometric and entity-level features provide detection signals that
+persist even when surface text is unrecognizable.
+
+\textbf{For accessibility:} Dependency depth decreases monotonically
+across all datasets ($-$3.9\% mean, $-$8.2\% max by T3), confirming
+that paraphrasers systematically simplify syntax. While this may aid
+comprehension, it comes at the cost of authorial voice and syntactic
+diversity.
+
+\textbf{For AI detection:} Entity retention analysis reveals that
+paraphrasers not only drop original entities but also hallucinate
+new ones (precision $<$ 1.0 at all stages). This entity hallucination
+could serve as an additional signal for detecting AI-paraphrased text,
+complementing existing stylometric approaches.
+
+\section{Interactive Dashboard}
+
+To enable exploration of these findings, we developed a Streamlit-based
+``Style-Drift Dashboard'' that provides: (1) a document explorer for
+side-by-side comparison of T0 and T3 texts with similarity scores; (2)
+interactive decay curves with filterable paraphraser families and datasets;
+(3) t-SNE identity trajectory visualizations with toggleable stages and
+families; and (4) a multi-modal audit view consolidating all analysis
+layers. The dashboard loads pre-computed experiment results and supports
+real-time filtering for presentation and exploration.
 
 \section{Limitations}
 
-Several limitations should be considered when interpreting our results.
+\textbf{Stylometric scope.} Stylometric features were extracted from
+3 of 7 datasets (wp, xsum, yelp) due to computational cost. NER analysis
+covers all 7 datasets but uses 500 samples per dataset rather than the
+full corpus.
 
-\textbf{Stylometric analysis covers 3 of 7 datasets.} Due to computational
-cost of spaCy parsing, stylometric features were extracted from wp, xsum,
-and yelp only (1,500 chains). While these span diverse domains, the
-remaining four datasets (sci\_gen, eli5, cmv, tldr) may exhibit different
-stylometric decay patterns that our analysis does not capture.
-
-\textbf{Simple classifiers.} Both attribution (Logistic Regression) and
+\textbf{Simple classifiers.} Attribution (Logistic Regression) and
 fingerprinting (Random Forest) use traditional ML models. Fine-tuned
-transformer models would likely achieve higher baseline accuracy and could
-reveal more nuanced patterns of identity decay. Our results therefore
-represent a lower bound on what is detectable.
+transformers would likely achieve higher accuracy, making our results
+a lower bound on detectability.
 
-\textbf{Fingerprint sample size.} After balancing all four paraphraser
-families to 471 samples each, the total fingerprinting dataset is 1,884
-texts. While sufficient for Random Forest, a larger balanced sample
-could improve classifier performance, particularly for PaLM which
-remains the hardest to distinguish (F1 = 0.40).
-
-\textbf{Chain-level confounds.} Each T0 document generates paraphrase
-chains for multiple paraphrasers, meaning the same source content appears
-across families. While this controls for content, it means our classifiers
-may partially learn source-document features rather than pure
-paraphraser-specific signatures.
+\textbf{NER model limitations.} Entity extraction uses spaCy's
+\texttt{en\_core\_web\_sm}, a relatively small model. A larger NER model
+or domain-specific models (e.g., for scientific text) could yield more
+accurate entity detection, potentially revealing different retention
+patterns.
 
 \textbf{Corpus scope.} All data comes from a single corpus
 \cite{tripto2024} with four paraphraser families. Results may not
-generalize to newer LLMs (e.g., GPT-4, Claude, Llama) or to longer
-documents beyond the paragraph-level texts in this corpus.
+generalize to newer LLMs (GPT-4, Claude, Llama) or to longer documents.
 
-\section{Future Goals}
-Remaining work for the final paper includes: (1) expanding stylometric
-analysis to all seven datasets; (2) experimenting with stronger classifiers
-(e.g., fine-tuned transformers) for attribution and fingerprinting; (3)
-per-domain analysis of where the ``point of no return'' varies; and (4)
-developing practical detection guidelines for AI-laundered text.
+\section{Conclusion}
+
+We have presented a comprehensive multi-modal analysis of how iterative
+LLM paraphrasing erodes linguistic identity across the Ship of Theseus
+corpus. Our key contributions are:
+
+\begin{enumerate}[leftmargin=*,topsep=2pt,itemsep=1pt]
+  \item \textbf{A four-layer decay hierarchy:} lexical surface is
+    replaced first (BLEU: 0.28 at T3), followed by named entities
+    (Jaccard: 0.41), distributional semantics (BERTScore: 0.81), and
+    syntactic structure (POS cosine: 0.95).
+  \item \textbf{The point of no return is not reached by T3:}
+    authorship attribution remains at 79.5\% accuracy after three
+    iterations, with the sharpest drop at T1.
+  \item \textbf{All paraphrasers leave identifiable fingerprints:}
+    detectable above chance (F1 = 0.55), with ChatGPT most identifiable
+    and style drift determined by the paraphraser, not the source text.
+  \item \textbf{Entity hallucination as a new detection signal:}
+    paraphrasers both drop original entities and fabricate new ones,
+    providing a content-level complement to stylometric detection.
+  \item \textbf{An interactive dashboard} for exploring style drift
+    across documents, metrics, and paraphraser families.
+\end{enumerate}
+
+\noindent Returning to our central question: if every linguistic marker
+is replaced by an AI but meaning remains, who is the author? Our data
+suggests that three iterations of paraphrasing are insufficient to fully
+erase authorial identity---the syntactic skeleton and residual stylometric
+signatures persist. The ship has had most of its planks replaced and
+much of its cargo lost, but its hull remains recognizably the same vessel.
+The paradox of authorial identity, in our empirical framing, resolves
+not as a binary but as a gradient: identity fades but does not vanish
+within the paraphrase chains we studied.
 
 \begin{thebibliography}{5}
 
