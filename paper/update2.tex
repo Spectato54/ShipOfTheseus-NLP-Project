@@ -459,6 +459,18 @@ CCONJ, DET) show visible shifts. Jensen-Shannon divergence between each
 stage's POS distribution and the T0 baseline increases monotonically,
 confirming progressive grammatical drift from the original.
 
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{fig2_pos_heatmap.png}
+  \caption{POS tag frequencies by stage (left) and frequency change from T0
+  (right). Content-word tags (NOUN, VERB) remain stable across iterations,
+  while function-word tags (DET, PUNCT) show consistent directional shifts.
+  ADV frequency decreases monotonically ($-$0.0099 by T3); DET and PUNCT
+  increase, suggesting paraphrasers insert determiners and punctuation
+  while compressing adverbial modifiers.}
+  \label{fig:pos_heatmap}
+\end{figure}
+
 \subsection{Identity Trajectory}
 
 We project all texts into a shared embedding space using TF-IDF followed by
@@ -478,20 +490,21 @@ results using all seven datasets.
 
 \begin{center}
 \small
-\begin{tabular}{lrrr}
+\begin{tabular}{lrrrrr}
 \toprule
-\textbf{Stage} & \textbf{Accuracy} & \textbf{F1 (Macro)} & \textbf{F1 (Weighted)} \\
+\textbf{Stage} & \textbf{Acc.} & \textbf{Human Prec.} & \textbf{Human Rec.} & \textbf{AI Prec.} & \textbf{AI Rec.} \\
 \midrule
-T0 & 0.969 & 0.969 & 0.969 \\
-T1 & 0.829 & 0.829 & 0.829 \\
-T2 & 0.815 & 0.815 & 0.815 \\
-T3 & 0.795 & 0.795 & 0.795 \\
+T0 & 0.969 & 0.976 & 0.963 & 0.963 & 0.976 \\
+T1 & 0.829 & 0.819 & 0.846 & 0.841 & 0.813 \\
+T2 & 0.815 & 0.809 & 0.826 & 0.822 & 0.805 \\
+T3 & 0.795 & 0.796 & 0.794 & 0.795 & 0.796 \\
 \bottomrule
 \end{tabular}
-\captionof{table}{Authorship attribution accuracy (Human vs.\ AI) trained
-on balanced T0, evaluated per stage across all 7 datasets. Accuracy
-degrades from 96.9\% to 79.5\% but remains well above the 50\% chance
-baseline.}
+\captionof{table}{Authorship attribution (Human vs.\ AI) trained on balanced
+T0, evaluated per stage across all 7 datasets. Per-class precision and recall
+reveal that Human texts are slightly easier to recover (higher recall) while
+AI texts are more often misclassified as Human at T1--T2. By T3, both
+classes converge to near-symmetric error rates.}
 \label{tab:attribution}
 \end{center}
 
@@ -713,7 +726,7 @@ linguistic layers, measured at T3:
 \toprule
 \textbf{Layer} & \textbf{Metric} & \textbf{T3 Score} \\
 \midrule
-Structure (skeleton) & POS Cosine Similarity & 0.946 \\
+Structure (skeleton) & POS Cosine Similarity & 0.870 \\
 Semantics (hull)     & BERTScore F1          & 0.810 \\
 Content (cargo)      & NER Jaccard           & 0.410 \\
 Lexical (skin)       & BLEU-2                & 0.280 \\
@@ -739,7 +752,7 @@ $$\text{Lexical} > \text{Content} > \text{Semantics} > \text{Structure}$$
 manner: they aggressively replace surface-level vocabulary (BLEU drops 72\%),
 significantly alter factual referents (NER drops 59\%), moderately shift
 distributional semantics (BERTScore drops 19\%), and barely touch
-grammatical structure (POS cosine drops only 5\%).
+grammatical structure (POS cosine drops 13\%).
 
 \section{Discussion}
 
@@ -765,7 +778,7 @@ intellectual content remains derivative.
 \textbf{RQ1 (Style vs.\ Content Decay):} The decay hierarchy is
 unambiguous: lexical features are replaced first (BLEU: $-$72\%), followed
 by concrete content (NER: $-$59\%), then distributional semantics
-(BERTScore: $-$19\%), and finally syntactic structure (POS: $-$5\%).
+(BERTScore: $-$19\%), and finally syntactic structure (POS: $-$13\%).
 Style is eroded before content, and content before meaning. The ``planks''
 of vocabulary are replaced long before the ``hull'' of meaning is
 compromised.
@@ -850,7 +863,7 @@ corpus. Our key contributions are:
   \item \textbf{A four-layer decay hierarchy:} lexical surface is
     replaced first (BLEU: 0.28 at T3), followed by named entities
     (Jaccard: 0.41), distributional semantics (BERTScore: 0.81), and
-    syntactic structure (POS cosine: 0.95).
+    syntactic structure (POS cosine: 0.87).
   \item \textbf{The point of no return is not reached by T3:}
     authorship attribution remains at 79.5\% accuracy after three
     iterations, with the sharpest drop at T1.

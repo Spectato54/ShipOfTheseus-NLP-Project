@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report
 from sklearn.model_selection import train_test_split
 
 
@@ -111,7 +111,8 @@ def evaluate_by_stage(model, vectorizer, chains_df, label_col="source",
         stages: stages to evaluate
 
     Returns:
-        pd.DataFrame with columns: stage, accuracy, f1_macro, f1_weighted
+        pd.DataFrame with columns: stage, accuracy, human_precision,
+        human_recall, ai_precision, ai_recall
     """
     results = []
     labels_all = chains_df[label_col].tolist()
@@ -125,16 +126,21 @@ def evaluate_by_stage(model, vectorizer, chains_df, label_col="source",
 
         # Only evaluate on non-empty texts
         mask = chains_df[stage].notna()
-        acc = accuracy_score(y_true[mask], y_pred[mask])
-        f1_m = f1_score(y_true[mask], y_pred[mask], average="macro", zero_division=0)
-        f1_w = f1_score(y_true[mask], y_pred[mask], average="weighted", zero_division=0)
+        yt, yp = y_true[mask], y_pred[mask]
+        acc = accuracy_score(yt, yp)
+        h_prec = precision_score(yt, yp, pos_label="Human", zero_division=0)
+        h_rec = recall_score(yt, yp, pos_label="Human", zero_division=0)
+        a_prec = precision_score(yt, yp, pos_label="AI", zero_division=0)
+        a_rec = recall_score(yt, yp, pos_label="AI", zero_division=0)
 
         results.append({
             "stage": stage,
             "accuracy": round(acc, 4),
-            "f1_macro": round(f1_m, 4),
-            "f1_weighted": round(f1_w, 4),
+            "human_precision": round(h_prec, 4),
+            "human_recall": round(h_rec, 4),
+            "ai_precision": round(a_prec, 4),
+            "ai_recall": round(a_rec, 4),
         })
-        print(f"  {stage}: Acc={acc:.4f}  F1(macro)={f1_m:.4f}")
+        print(f"  {stage}: Acc={acc:.4f}  Human(P={h_prec:.3f} R={h_rec:.3f})  AI(P={a_prec:.3f} R={a_rec:.3f})")
 
     return pd.DataFrame(results)

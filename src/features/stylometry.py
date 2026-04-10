@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import spacy
 from collections import Counter
-from scipy.spatial.distance import jensenshannon
+from scipy.spatial.distance import jensenshannon, cosine as cosine_dist
 
 # Load spaCy model once at import time
 _NLP = None
@@ -158,6 +158,73 @@ def compute_pos_divergence(pos_dist_a, pos_dist_b):
     vec_b = vec_b / vec_b.sum()
 
     return float(jensenshannon(vec_a, vec_b))
+
+
+def compute_pos_cosine(pos_dist_a, pos_dist_b):
+    """
+    Compute cosine similarity between two POS distributions.
+
+    Args:
+        pos_dist_a, pos_dist_b: dicts mapping POS tag -> frequency (normalized)
+
+    Returns:
+        float: cosine similarity (1 = identical, 0 = orthogonal)
+    """
+    vec_a = np.array([pos_dist_a.get(f"pos_{p}", 0.0) for p in TRACKED_POS])
+    vec_b = np.array([pos_dist_b.get(f"pos_{p}", 0.0) for p in TRACKED_POS])
+
+    if vec_a.sum() == 0 or vec_b.sum() == 0:
+        return 0.0
+
+    return float(1.0 - cosine_dist(vec_a, vec_b))
+
+
+def compute_pos_cosine_by_stage(chains_df, stages=("T0", "T1", "T2", "T3"),
+                                sample_n=500, seed=42):
+    """
+    Compute mean POS cosine similarity between T0 and each stage.
+
+    For each text chain, extracts POS features at T0 and at each subsequent
+    stage, then computes pairwise cosine similarity.
+
+    Args:
+        chains_df: DataFrame with columns T0, T1, T2, T3 (text)
+        stages: stages to compare against T0
+        sample_n: rows to sample (None = all)
+        seed: random seed
+
+    Returns:
+        dict: {stage: mean_cosine_similarity}
+    """
+    if sample_n and len(chains_df) > sample_n:
+        chains_df = chains_df.sample(sample_n, random_state=seed)
+
+    # Extract POS features for T0
+    print("Extracting POS features for T0...")
+    t0_texts = chains_df["T0"].dropna().tolist()
+    t0_features = extract_features_batch(t0_texts, show_progress=True)
+
+    results = {"T0": 1.0}
+
+    for stage in stages:
+        if stage == "T0":
+            continue
+        print(f"\nExtracting POS features for {stage}...")
+        stage_texts = chains_df[stage].dropna().tolist()
+        n = min(len(t0_texts), len(stage_texts))
+        stage_features = extract_features_batch(stage_texts[:n], show_progress=True)
+
+        cosines = []
+        for i in range(n):
+            pos_a = t0_features.iloc[i].to_dict()
+            pos_b = stage_features.iloc[i].to_dict()
+            cosines.append(compute_pos_cosine(pos_a, pos_b))
+
+        mean_cos = np.mean(cosines)
+        results[stage] = round(mean_cos, 4)
+        print(f"  {stage}: mean POS cosine = {mean_cos:.4f}")
+
+    return results
 
 
 def aggregate_features_by_stage(chains_df, stages=("T0", "T1", "T2", "T3"),

@@ -108,15 +108,86 @@ if page == "Overview":
     **Iterations:** T0 (original) → T1 → T2 → T3
     """)
 
+    st.markdown("""
+    ### Paraphrasers
+    The corpus includes four paraphraser families, each with distinct architectures and
+    rewriting strategies that explain their different behaviors in our experiments:
+
+    - **ChatGPT** — A large instruction-tuned language model (GPT-3.5) designed for
+      general-purpose conversation and text generation. It aggressively rewrites style,
+      vocabulary, and sentence structure to produce fluent, "polished" output. This is why
+      ChatGPT causes the **most identity erosion** — it doesn't just rephrase, it imposes
+      its own characteristic voice on the text.
+
+    - **PaLM2** — Google's large language model, also instruction-tuned for general tasks.
+      Similar in capability to ChatGPT but with a somewhat more conservative rewriting style.
+      It falls in the middle for identity erosion — it rewrites substantially but retains more
+      of the original structure than ChatGPT.
+
+    - **Pegasus** — A seq2seq model specifically designed for **abstractive summarization**,
+      not general paraphrasing. Because its primary goal is to compress and summarize, it
+      tends to shorten text while preserving the original wording and structure more faithfully.
+      This is why Pegasus causes the **least identity erosion** — it acts more like an editor
+      than a rewriter. Variants: `pegasus(slight)` applies minimal changes;
+      `pegasus(full)` applies stronger summarization.
+
+    - **Dipper** — A **discourse-level paraphraser** specifically built for paraphrase
+      generation. Unlike ChatGPT/PaLM2 (general-purpose) or Pegasus (summarizer), Dipper is
+      purpose-built to rewrite text at the sentence and paragraph level. It can be tuned for
+      aggressiveness: `dipper(low)` makes conservative changes, while `dipper(high)` applies
+      heavy restructuring — which is why Dipper(high) shows some of the steepest drops in
+      entity retention and style preservation.
+
+    In family-level analyses, variants are grouped under their shared paraphraser family
+    to compare broader model behavior across systems.
+
+    ### Iterations
+    Each document is tracked across iterative rewrites from T0 to T3. T0 is the original text,
+    T1 is the first paraphrase, T2 is the second, and T3 is the third.
+
+    ### Version Names
+    The `version_name` field records the sequence of paraphrasers used to generate a text.
+    For example, `chatgpt_chatgpt_chatgpt` indicates a third-iteration output (T3) produced
+    by applying ChatGPT three times in succession.
+    """)
+
     if not chains.empty:
         st.markdown("### Corpus at a Glance")
+
+        dataset_counts = chains.groupby("dataset").size().sort_values(ascending=False)
+        family_counts = chains.groupby("family").size().sort_values(ascending=False)
+
+        dataset_colors = ["#E53935", "#FB8C00", "#FDD835", "#43A047",
+                          "#1E88E5", "#8E24AA", "#6D4C41"]
+        family_colors = ["#1E88E5", "#E53935", "#43A047", "#FB8C00"]
+
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("**Documents per dataset**")
-            st.bar_chart(chains.groupby("dataset").size(), height=300)
+            fig, ax = plt.subplots(figsize=(6, 3.5))
+            bars = ax.bar(dataset_counts.index, dataset_counts.values,
+                          color=dataset_colors[:len(dataset_counts)])
+            for bar in bars:
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 15,
+                        f'{int(bar.get_height()):,}', ha='center', va='bottom', fontsize=9)
+            ax.set_ylabel("Count")
+            ax.set_ylim(0, dataset_counts.max() * 1.15)
+            plt.xticks(rotation=30, ha='right')
+            plt.tight_layout()
+            st.pyplot(fig)
         with col2:
             st.markdown("**Paraphraser family distribution**")
-            st.bar_chart(chains.groupby("family").size(), height=300)
+            fig, ax = plt.subplots(figsize=(6, 3.5))
+            bars = ax.bar(family_counts.index, family_counts.values,
+                          color=family_colors[:len(family_counts)])
+            for bar in bars:
+                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 15,
+                        f'{int(bar.get_height()):,}', ha='center', va='bottom', fontsize=9)
+            ax.set_ylabel("Count")
+            ax.set_ylim(0, family_counts.max() * 1.15)
+            plt.xticks(rotation=30, ha='right')
+            plt.tight_layout()
+            st.pyplot(fig)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -159,10 +230,10 @@ elif page == "Document Explorer":
             with left:
                 st.markdown("#### T0 — Original")
                 st.markdown(f"**Source:** `{row['source']}` | **Key:** `{row['key']}`")
-                st.text_area("T0 Text", row["T0"], height=300, disabled=True, key="t0_text")
+                st.text_area("T0 Text", row["T0"], height=300, disabled=True)
             with right:
                 st.markdown(f"#### T3 — After 3 Iterations ({sel_family})")
-                st.text_area("T3 Text", row["T3"], height=300, disabled=True, key="t3_text")
+                st.text_area("T3 Text", row["T3"], height=300, disabled=True)
 
             # Show intermediate stages in expander
             with st.expander("Show T1 and T2 (intermediate stages)"):
@@ -263,7 +334,13 @@ elif page == "Entity Retention (NER)":
         st.error("No NER data found. Run notebook 05 first.")
     else:
         st.markdown("### Overall Entity Retention")
-        st.dataframe(ner_summary, use_container_width=True)
+        summary_display = ner_summary.copy()
+        for col in ["Jaccard", "Recall", "Precision", "Mean T0 entities", "Mean Tn entities"]:
+            if col in summary_display.columns:
+                summary_display[col] = summary_display[col].map(
+                    lambda x: f"{x:.4f}" if pd.notna(x) else "N/A"
+                )
+        st.table(summary_display)
 
         tab1, tab2, tab3 = st.tabs(["By Family", "By Domain", "Figures"])
 
@@ -291,13 +368,23 @@ elif page == "Authorship Attribution":
         st.error("No data found.")
     else:
         st.markdown("""
-        A classifier trained on T0 (Human vs. AI) is evaluated on T1/T2/T3.
-        How quickly does authorship identity collapse?
-        """)
+        **The "Point of No Return"** asks: *after how many rounds of paraphrasing does a text
+        become unrecognizable from its original author?*
 
-        # --- Attribution accuracy table ---
-        if not attribution.empty:
-            st.dataframe(attribution, use_container_width=True)
+        To measure this, we first teach a classifier (Logistic Regression) to tell apart
+        Human-written and AI-generated texts using only the **original, unparaphrased T0 texts**.
+        The classifier learns stylistic patterns — word choices, phrase structures — that
+        distinguish human writing from machine writing. We balance the training data so each
+        class has equal representation, meaning a random guess would score 50%.
+
+        Then we test: can the classifier still tell Human from AI after the text has been
+        paraphrased once (T1), twice (T2), or three times (T3)? As paraphrasing rewrites more
+        of the original style, the classifier's accuracy should drop. When it hits 50%, the
+        original authorial identity has been fully erased — that is the "point of no return."
+
+        **Our finding:** accuracy drops from 96.9% (T0) to 79.5% (T3) — well above the 50%
+        chance line. The point of no return is **not reached** within three iterations.
+        """)
 
         # --- Per-family attribution data (from paper) ---
         family_attr = pd.DataFrame({
@@ -472,15 +559,23 @@ elif page == "Multi-Modal Audit":
     The central finding: **different linguistic layers decay at dramatically different rates.**
     """)
 
+    # Load POS cosine from computed results
+    pos_cosine_path = EXP_STYLOMETRY / "pos_cosine_by_stage.csv"
+    if pos_cosine_path.exists():
+        pos_cos = pd.read_csv(pos_cosine_path).iloc[0]
+        pos_t1, pos_t2, pos_t3 = pos_cos["T1"], pos_cos["T2"], pos_cos["T3"]
+    else:
+        pos_t1, pos_t2, pos_t3 = 0.966, 0.956, 0.870
+
     # Multi-modal comparison data
     modal_data = {
         "Layer": ["Structure (POS Cosine)", "Semantics (BERTScore F1)",
                    "Semantics (SBERT Cosine)", "Content (NER Jaccard)",
                    "Lexical (BLEU-2)"],
         "T0": [1.0, 1.0, 1.0, 1.0, 1.0],
-        "T1": [0.965, 0.91, 0.79, 0.509, 0.54],
-        "T2": [0.955, 0.86, 0.75, 0.446, 0.38],
-        "T3": [0.946, 0.81, 0.73, 0.410, 0.28],
+        "T1": [pos_t1, 0.91, 0.79, 0.509, 0.54],
+        "T2": [pos_t2, 0.86, 0.75, 0.446, 0.38],
+        "T3": [pos_t3, 0.81, 0.73, 0.410, 0.28],
     }
     modal_df = pd.DataFrame(modal_data)
 
