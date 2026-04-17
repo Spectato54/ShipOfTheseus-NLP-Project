@@ -83,7 +83,7 @@ The dashboard provides:
 - NER entity retention tracking
 - Authorship attribution analysis
 - Multi-modal audit comparing all linguistic layers
-
+Streamlit App: https://shipoftheseus-nlp-project-axmtovk8vft6en4iscveqg.streamlit.app/
 ## Project Structure
 
 ```
