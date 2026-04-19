@@ -21,6 +21,7 @@ EXP_BASELINE = ROOT / "experiments" / "baseline_similarity"
 EXP_STYLOMETRY = ROOT / "experiments" / "stylometry"
 EXP_NER = ROOT / "experiments" / "ner"
 EXP_FORENSICS = ROOT / "experiments" / "identity_forensics"
+EXP_MULTI_MODAL = ROOT / "experiments" / "multi_modal_audit.csv"
 FIGURES = ROOT / "figures"
 
 DATASETS = ["sci_gen", "wp", "xsum", "eli5", "cmv", "tldr", "yelp"]
@@ -54,6 +55,43 @@ def load_experiment_csv(path):
     return pd.DataFrame()
 
 
+@st.cache_data
+def load_multi_modal_audit():
+    expected_columns = ["Layer", *STAGES]
+    fallback = pd.DataFrame({
+        "Layer": [
+            "Structure (POS Cosine)",
+            "Semantics (BERTScore F1)",
+            "Semantics (SBERT Cosine)",
+            "Content (NER Jaccard)",
+            "Lexical (BLEU-2)",
+        ],
+        "T0": [1.0, 1.0, 1.0, 1.0, 1.0],
+        "T1": [0.9649, 0.91, 0.79, 0.5093, 0.54],
+        "T2": [0.9551, 0.86, 0.75, 0.4465, 0.38],
+        "T3": [0.9464, 0.81, 0.73, 0.4098, 0.28],
+    })
+    audit_df = load_experiment_csv(EXP_MULTI_MODAL)
+    if audit_df.empty or any(column not in audit_df.columns for column in expected_columns):
+        return fallback
+    return audit_df[expected_columns].copy()
+
+
+def get_audit_t3(audit_df, layer, default_value):
+    match = audit_df.loc[audit_df["Layer"] == layer, "T3"]
+    if match.empty or pd.isna(match.iloc[0]):
+        return default_value
+    return float(match.iloc[0])
+
+
+def format_metric_value(value):
+    return f"{value:.2f} at T3"
+
+
+def format_decay(value):
+    return f"{value - 1.0:+.0%}"
+
+
 # ── Load data ────────────────────────────────────────────────────────────────
 chains = load_scored_chains()
 stylometry_summary = load_experiment_csv(EXP_STYLOMETRY / "feature_summary_by_stage.csv")
@@ -61,6 +99,7 @@ ner_summary = load_experiment_csv(EXP_NER / "ner_retention_summary.csv")
 ner_family = load_experiment_csv(EXP_NER / "ner_retention_by_family.csv")
 ner_domain = load_experiment_csv(EXP_NER / "ner_retention_by_domain.csv")
 attribution = load_experiment_csv(EXP_FORENSICS / "attribution_results_balanced.csv")
+multi_modal_audit = load_multi_modal_audit()
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 st.sidebar.title("⛵ Ship of Theseus")
@@ -89,11 +128,16 @@ if page == "Overview":
     human text. We track **four layers of linguistic identity** across T0 → T3:
     """)
 
+    lexical_t3 = get_audit_t3(multi_modal_audit, "Lexical (BLEU-2)", 0.28)
+    content_t3 = get_audit_t3(multi_modal_audit, "Content (NER Jaccard)", 0.41)
+    semantic_t3 = get_audit_t3(multi_modal_audit, "Semantics (BERTScore F1)", 0.81)
+    structure_t3 = get_audit_t3(multi_modal_audit, "Structure (POS Cosine)", 0.95)
+
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Lexical (BLEU-2)", "0.28 at T3", "-72%")
-    col2.metric("Content (NER Jaccard)", "0.41 at T3", "-59%")
-    col3.metric("Semantic (BERTScore)", "0.81 at T3", "-19%")
-    col4.metric("Structure (POS Cos)", "0.95 at T3", "-5%")
+    col1.metric("Lexical (BLEU-2)", format_metric_value(lexical_t3), format_decay(lexical_t3))
+    col2.metric("Content (NER Jaccard)", format_metric_value(content_t3), format_decay(content_t3))
+    col3.metric("Semantic (BERTScore)", format_metric_value(semantic_t3), format_decay(semantic_t3))
+    col4.metric("Structure (POS Cos)", format_metric_value(structure_t3), format_decay(structure_t3))
 
     st.markdown("""
     ### Decay Hierarchy
@@ -562,25 +606,7 @@ elif page == "Multi-Modal Audit":
     The central finding: **different linguistic layers decay at dramatically different rates.**
     """)
 
-    # Load POS cosine from computed results
-    pos_cosine_path = EXP_STYLOMETRY / "pos_cosine_by_stage.csv"
-    if pos_cosine_path.exists():
-        pos_cos = pd.read_csv(pos_cosine_path).iloc[0]
-        pos_t1, pos_t2, pos_t3 = pos_cos["T1"], pos_cos["T2"], pos_cos["T3"]
-    else:
-        pos_t1, pos_t2, pos_t3 = 0.966, 0.956, 0.870
-
-    # Multi-modal comparison data
-    modal_data = {
-        "Layer": ["Structure (POS Cosine)", "Semantics (BERTScore F1)",
-                   "Semantics (SBERT Cosine)", "Content (NER Jaccard)",
-                   "Lexical (BLEU-2)"],
-        "T0": [1.0, 1.0, 1.0, 1.0, 1.0],
-        "T1": [pos_t1, 0.91, 0.79, 0.509, 0.54],
-        "T2": [pos_t2, 0.86, 0.75, 0.446, 0.38],
-        "T3": [pos_t3, 0.81, 0.73, 0.410, 0.28],
-    }
-    modal_df = pd.DataFrame(modal_data)
+    modal_df = multi_modal_audit.copy()
 
     st.dataframe(modal_df, use_container_width=True)
 
