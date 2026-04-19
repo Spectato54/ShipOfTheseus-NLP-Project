@@ -111,8 +111,8 @@ def evaluate_by_stage(model, vectorizer, chains_df, label_col="source",
         stages: stages to evaluate
 
     Returns:
-        pd.DataFrame with columns: stage, accuracy, human_precision,
-        human_recall, ai_precision, ai_recall
+        pd.DataFrame with columns: stage, accuracy, f1_macro,
+        f1_weighted, human_precision, human_recall, ai_precision, ai_recall
     """
     results = []
     labels_all = chains_df[label_col].tolist()
@@ -128,6 +128,8 @@ def evaluate_by_stage(model, vectorizer, chains_df, label_col="source",
         mask = chains_df[stage].notna()
         yt, yp = y_true[mask], y_pred[mask]
         acc = accuracy_score(yt, yp)
+        f1_macro = f1_score(yt, yp, average="macro", zero_division=0)
+        f1_weighted = f1_score(yt, yp, average="weighted", zero_division=0)
         h_prec = precision_score(yt, yp, pos_label="Human", zero_division=0)
         h_rec = recall_score(yt, yp, pos_label="Human", zero_division=0)
         a_prec = precision_score(yt, yp, pos_label="AI", zero_division=0)
@@ -136,11 +138,16 @@ def evaluate_by_stage(model, vectorizer, chains_df, label_col="source",
         results.append({
             "stage": stage,
             "accuracy": round(acc, 4),
+            "f1_macro": round(f1_macro, 4),
+            "f1_weighted": round(f1_weighted, 4),
             "human_precision": round(h_prec, 4),
             "human_recall": round(h_rec, 4),
             "ai_precision": round(a_prec, 4),
             "ai_recall": round(a_rec, 4),
         })
-        print(f"  {stage}: Acc={acc:.4f}  Human(P={h_prec:.3f} R={h_rec:.3f})  AI(P={a_prec:.3f} R={a_rec:.3f})")
+        print(
+            f"  {stage}: Acc={acc:.4f} F1m={f1_macro:.4f} "
+            f"Human(P={h_prec:.3f} R={h_rec:.3f}) AI(P={a_prec:.3f} R={a_rec:.3f})"
+        )
 
     return pd.DataFrame(results)

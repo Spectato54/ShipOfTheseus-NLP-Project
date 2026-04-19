@@ -452,28 +452,28 @@ elif page == "Authorship Attribution":
         @st.cache_data(show_spinner="Computing t-SNE embeddings (first load only)...")
         def compute_tsne(chains_df, sample_per_dataset=100):
             """TF-IDF → PCA(50) → t-SNE(2) for all stages."""
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.decomposition import PCA
-            from sklearn.manifold import TSNE
+            try:
+                from sklearn.decomposition import PCA
+                from sklearn.feature_extraction.text import TfidfVectorizer
+                from sklearn.manifold import TSNE
+            except ModuleNotFoundError:
+                return pd.DataFrame(columns=["t-SNE 1", "t-SNE 2", "Stage", "Family", "Dataset"])
 
-            # Sample for speed
-            sampled = chains_df.groupby("dataset").apply(
-                lambda x: x.sample(min(sample_per_dataset, len(x)), random_state=42),
-                include_groups=False,
-            ).reset_index(drop=True)
-            # Re-add dataset column lost by include_groups=False
-            sampled_full = chains_df.groupby("dataset").apply(
+            sampled = chains_df.groupby("dataset", group_keys=False).apply(
                 lambda x: x.sample(min(sample_per_dataset, len(x)), random_state=42),
             ).reset_index(drop=True)
 
             texts, labels_stage, labels_family, labels_dataset = [], [], [], []
-            for _, row in sampled_full.iterrows():
+            for _, row in sampled.iterrows():
                 for stage in STAGES:
                     if pd.notna(row.get(stage)):
                         texts.append(str(row[stage]))
                         labels_stage.append(stage)
                         labels_family.append(row.get("family", "unknown"))
                         labels_dataset.append(row.get("dataset", "unknown"))
+
+            if not texts:
+                return pd.DataFrame(columns=["t-SNE 1", "t-SNE 2", "Stage", "Family", "Dataset"])
 
             tfidf = TfidfVectorizer(max_features=3000, ngram_range=(1, 2), sublinear_tf=True)
             X = tfidf.fit_transform(texts)
@@ -490,46 +490,49 @@ elif page == "Authorship Attribution":
 
         tsne_df = compute_tsne(chains)
 
-        # t-SNE filters
-        col1, col2 = st.columns(2)
-        with col1:
-            tsne_color = st.radio("Color by", ["Stage", "Family"], horizontal=True)
-        with col2:
-            if tsne_color == "Stage":
-                tsne_filter = st.multiselect(
-                    "Filter stages", STAGES, default=STAGES, key="tsne_stages"
-                )
-            else:
-                all_families = tsne_df["Family"].unique().tolist()
-                tsne_filter = st.multiselect(
-                    "Filter families", all_families, default=all_families, key="tsne_families"
-                )
-
-        # Filter
-        if tsne_color == "Stage":
-            tsne_filtered = tsne_df[tsne_df["Stage"].isin(tsne_filter)]
-            color_col = "Stage"
-            color_map = {"T0": "#1565C0", "T1": "#7B1FA2", "T2": "#E65100", "T3": "#C62828"}
-            cat_order = {"Stage": [s for s in STAGES if s in tsne_filter]}
+        if tsne_df.empty:
+            st.info("t-SNE is unavailable because scikit-learn is not installed in this environment.")
         else:
-            tsne_filtered = tsne_df[tsne_df["Family"].isin(tsne_filter)]
-            color_col = "Family"
-            color_map = {"chatgpt": "#E53935", "dipper": "#1E88E5",
-                         "pegasus": "#43A047", "palm": "#FDD835"}
-            cat_order = {"Family": [f for f in tsne_filtered["Family"].unique()]}
+            # t-SNE filters
+            col1, col2 = st.columns(2)
+            with col1:
+                tsne_color = st.radio("Color by", ["Stage", "Family"], horizontal=True)
+            with col2:
+                if tsne_color == "Stage":
+                    tsne_filter = st.multiselect(
+                        "Filter stages", STAGES, default=STAGES, key="tsne_stages"
+                    )
+                else:
+                    all_families = tsne_df["Family"].unique().tolist()
+                    tsne_filter = st.multiselect(
+                        "Filter families", all_families, default=all_families, key="tsne_families"
+                    )
 
-        fig_tsne = px.scatter(
-            tsne_filtered, x="t-SNE 1", y="t-SNE 2",
-            color=color_col, color_discrete_map=color_map,
-            category_orders=cat_order,
-            opacity=0.5, hover_data=["Dataset", "Stage", "Family"],
-            title=f"Identity Trajectory — colored by {color_col}",
-            height=550,
-        )
-        fig_tsne.update_traces(marker=dict(size=5))
-        fig_tsne.update_layout(template="plotly_white",
-                               legend=dict(font=dict(size=14)))
-        st.plotly_chart(fig_tsne, use_container_width=True)
+            # Filter
+            if tsne_color == "Stage":
+                tsne_filtered = tsne_df[tsne_df["Stage"].isin(tsne_filter)]
+                color_col = "Stage"
+                color_map = {"T0": "#1565C0", "T1": "#7B1FA2", "T2": "#E65100", "T3": "#C62828"}
+                cat_order = {"Stage": [s for s in STAGES if s in tsne_filter]}
+            else:
+                tsne_filtered = tsne_df[tsne_df["Family"].isin(tsne_filter)]
+                color_col = "Family"
+                color_map = {"chatgpt": "#E53935", "dipper": "#1E88E5",
+                             "pegasus": "#43A047", "palm": "#FDD835"}
+                cat_order = {"Family": [f for f in tsne_filtered["Family"].unique()]}
+
+            fig_tsne = px.scatter(
+                tsne_filtered, x="t-SNE 1", y="t-SNE 2",
+                color=color_col, color_discrete_map=color_map,
+                category_orders=cat_order,
+                opacity=0.5, hover_data=["Dataset", "Stage", "Family"],
+                title=f"Identity Trajectory — colored by {color_col}",
+                height=550,
+            )
+            fig_tsne.update_traces(marker=dict(size=5))
+            fig_tsne.update_layout(template="plotly_white",
+                                   legend=dict(font=dict(size=14)))
+            st.plotly_chart(fig_tsne, use_container_width=True)
 
         # --- Per-domain error analysis ---
         error_domain = load_experiment_csv(EXP_FORENSICS / "error_analysis_by_domain.csv")
